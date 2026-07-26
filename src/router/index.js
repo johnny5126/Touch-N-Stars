@@ -16,7 +16,11 @@ import FocusPage from '@/views/FocusPage.vue';
 import SequencePage from '@/views/SequencePage.vue';
 import FramingPage from '@/views/FramingPage.vue';
 import { useSettingsStore } from '@/store/settingsStore';
-
+import DashboardPage from '@/views/DashboardPage.vue';
+import PlanPage from '@/views/PlanPage.vue';
+import ChooseTargetPage from '@/views/ChooseTargetPage.vue';
+import PolarAlignmentPage from '@/views/PolarAlignmentPage.vue';
+import ImagingPage from '@/views/ImagingPage.vue';
 const routes = [
   {
     path: '/',
@@ -28,6 +32,25 @@ const routes = [
     component: SetupPage,
     meta: { requiresSetup: false },
   },
+  { path: '/plan', name: 'plan', component: PlanPage, meta: { requiresSetup: false } },
+  {
+    path: '/choose-target',
+    name: 'choose-target',
+    component: ChooseTargetPage,
+    meta: { requiresSetup: false },
+  },
+  {
+    path: '/PolarAlignmentPage',
+    name: 'polar-alignment',
+    component: PolarAlignmentPage,
+    meta: { requiresSetup: false },
+  },
+  {
+    path: '/ImagingPage',
+    name: 'Imaging',
+    component: ImagingPage,
+  },
+  { path: '/dashboard', component: DashboardPage, meta: { requiresSetup: false } },
   { path: '/equipment', component: EquipmentPage, meta: { requiresSetup: true } },
   { path: '/camera', component: CameraPage, meta: { requiresSetup: true } },
   { path: '/mount', component: MountPage, meta: { requiresSetup: true } },

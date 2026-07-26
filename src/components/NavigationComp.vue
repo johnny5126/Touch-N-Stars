@@ -57,7 +57,11 @@
             <LinkIcon class="icon force-visible" />
           </router-link>
         </div>
-
+        <div :style="{ order: getNavOrder('polar-alignment') }" data-label="Polar Alignment">
+          <router-link to="/PolarAlignmentPage" class="nav-button" active-class="active-nav-button">
+            <MapIcon class="icon force-visible" />
+          </router-link>
+        </div>
         <div
           v-if="store.cameraInfo.Connected && !isNavItemHidden('camera')"
           :style="{ order: getNavOrder('camera') }"
@@ -490,6 +494,7 @@ import {
   SparklesIcon,
   InformationCircleIcon,
   LinkSlashIcon,
+  MapIcon,
 } from '@heroicons/vue/24/outline';
 import CameraFramingIcon from '@/components/icons/CameraFramingIcon.vue';
 import { watch, computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue';

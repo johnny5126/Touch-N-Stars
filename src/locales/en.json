@@ -37,7 +37,7 @@
     }
   },
   "app": {
-    "title": "Touch'N'Stars",
+    "title": "Touch'N'St",
     "connection_error_toast": {
       "title": "Connection error",
       "message_api": "The API plugin is not available. Please check the settings in NINA",
@@ -71,7 +71,7 @@
     "working": "Working…"
   },
   "setup": {
-    "welcome": "Welcome to Touch'N'Stars",
+    "welcome": "Welcome to John's Touch'N'Stars",
     "description": "Let's get started with a quick setup",
     "selectLanguage": "Select your language",
     "gpsConfiguration": "GPS Configuration",

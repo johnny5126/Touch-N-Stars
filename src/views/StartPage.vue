@@ -1,7 +1,7 @@
 <template>
   <div class="container text-center">
     <div class="flex flex-col font-mono font-bold justify-center items-center h-full">
-      <h1 class="text-5xl pt-6 text-yellow-50">{{ $t('app.title') }}</h1>
+      <h1 class="text-5xl pt-6 text-yellow-50">Welcome to John</h1>
       <img class="mt-5" src="../assets/Logo_TouchNStars_600x600.png" alt="" />
     </div>
   </div>
@@ -25,7 +25,7 @@ watch(
     if (isReachable && isFirstVisit) {
       // Mark as visited and redirect immediately without loading overlay
       sessionStorage.setItem('hasVisited', 'true');
-      router.push('/equipment');
+      // router.push('/equipment');
     }
   }
 );
@@ -35,7 +35,7 @@ onMounted(() => {
   // Only redirect if this is the first visit
   if (store.isBackendReachable && isFirstVisit) {
     sessionStorage.setItem('hasVisited', 'true');
-    router.push('/equipment');
+    // router.push('/equipment');
   }
 });
 </script>

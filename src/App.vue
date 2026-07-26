@@ -2,7 +2,7 @@
   <div class="dark min-h-screen bg-gray-900 text-white">
     <div :class="appLayoutClasses">
       <!-- Navigation -->
-      <nav>
+      <nav v-if="!isDashboardRoute && $route.name !== 'polar-alignment'">
         <div :class="navContainerClasses">
           <NavigationComp />
         </div>
@@ -63,14 +63,15 @@
 
       <div v-if="!shouldShowConnectionSplash" :class="mainContentClasses">
         <StellariumView
-          v-show="store.showStellarium"
+          v-show="store.showStellarium && !isDashboardRoute"
           v-if="settingsStore.setupCompleted && store.isBackendReachable"
           :key="stellariumRefreshKey"
         />
-        <router-view v-show="!store.showStellarium" :key="routerViewKey" />
+
+        <router-view />
       </div>
       <!-- Footer -->
-      <div v-if="settingsStore.setupCompleted" :class="statusBarClasses">
+      <div v-if="settingsStore.setupCompleted && !isDashboardRoute" :class="statusBarClasses">
         <StatusBar />
       </div>
     </div>
@@ -338,7 +339,9 @@ const settingsStore = useSettingsStore();
 const pinsStore = usePinsStore();
 const nightSummaryStore = useNightSummaryStore();
 const route = useRoute();
-
+const isDashboardRoute = computed(
+  () => route.path === '/dashboard' || route.path === '/plan' || route.path === '/choose-target'
+);
 const showTimeWarningModal = ref(false);
 const timeWarningClientTime = ref('');
 const timeWarningDeviceTime = ref('');
@@ -505,11 +508,7 @@ const statusBarClasses = computed(() => ({
 }));
 
 const shouldShowConnectionSplash = computed(() => {
-  return (
-    (showSplashScreen.value || (!store.isBackendReachable && route.path !== '/settings')) &&
-    route.path !== '/setup' &&
-    !pinsStore.shouldShowUpgradeOverlay
-  );
+  return false;
 });
 
 const pinsUpgradeOverlayMessage = computed(() => {
