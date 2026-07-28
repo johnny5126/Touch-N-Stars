@@ -2,7 +2,7 @@
   <div class="dark min-h-screen bg-gray-900 text-white">
     <div :class="appLayoutClasses">
       <!-- Navigation -->
-      <nav v-if="!isDashboardRoute && $route.name !== 'polar-alignment'">
+      <nav v-if="$route.name !== 'polar-alignment'">
         <div :class="navContainerClasses">
           <NavigationComp />
         </div>

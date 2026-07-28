@@ -30,7 +30,10 @@ const routes = [
   {
     path: '/setup',
     component: SetupPage,
-    meta: { requiresSetup: false },
+    meta: {
+      requiresSetup: false,
+      hideNavigation: true,
+    },
   },
   { path: '/plan', name: 'plan', component: PlanPage, meta: { requiresSetup: false } },
   {

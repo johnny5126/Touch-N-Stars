@@ -78,20 +78,20 @@ const stars = Array.from({ length: 55 }, (_, i) => ({
 }));
 const adjustmentDirection = 'NE';
 async function captureExposure(seconds) {
-  const interval = 100
-  const total = seconds * 1000
+  const interval = 100;
+  const total = seconds * 1000;
 
   for (let elapsed = 0; elapsed <= total; elapsed += interval) {
-    const remaining = Math.max(0, seconds - elapsed / 1000)
-    exposureRemaining.value = `${remaining.toFixed(1)} s`
-    await new Promise((resolve) => setTimeout(resolve, interval))
+    const remaining = Math.max(0, seconds - elapsed / 1000);
+    exposureRemaining.value = `${remaining.toFixed(1)} s`;
+    await new Promise((resolve) => setTimeout(resolve, interval));
   }
 
-  exposureRemaining.value = '0.0 s'
+  exposureRemaining.value = '0.0 s';
 }
 
 function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 async function startPolarAlignment() {
   if (isBusy.value) {
@@ -319,10 +319,7 @@ function continueAlignment() {
 
           <label class="setting-field">
             <span>Camera</span>
-            <select
-  v-model="selectedCamera"
-  :disabled="alignmentStarted"
->
+            <select v-model="selectedCamera" :disabled="alignmentStarted">
               <option>ASI2600MC Pro</option>
               <option>Imaging Train A</option>
               <option>Imaging Train B</option>
@@ -331,16 +328,13 @@ function continueAlignment() {
 
           <label class="setting-field">
             <span>Exposure</span>
-            <select
-  v-model.number="exposure"
-  :disabled="alignmentStarted"
->
-  <option :value="1">1 second</option>
-  <option :value="2">2 seconds</option>
-  <option :value="3">3 seconds</option>
-  <option :value="5">5 seconds</option>
-  <option :value="10">10 seconds</option>
-</select>
+            <select v-model.number="exposure" :disabled="alignmentStarted">
+              <option :value="1">1 second</option>
+              <option :value="2">2 seconds</option>
+              <option :value="3">3 seconds</option>
+              <option :value="5">5 seconds</option>
+              <option :value="10">10 seconds</option>
+            </select>
           </label>
 
           <label class="setting-field">
@@ -348,7 +342,6 @@ function continueAlignment() {
             <input v-model.number="gain" type="number" min="0" max="500" step="1" />
           </label>
 
-          
           <div class="setting-field">
             <span>Plate Solver</span>
             <div class="readonly-value">
@@ -357,18 +350,9 @@ function continueAlignment() {
             </div>
           </div>
         </div>
-                
 
-        <div
-          <div
-          class="mount-illustration"
-          aria-label="AM5 mount and telescope"
-        >
-          <img
-            src="@/assets/am5-mount.png"
-            alt="AM5 mount and telescope"
-            class="mount-image"
-          />
+        <div class="mount-illustration" aria-label="AM5 mount and telescope">
+          <img src="@/assets/am5-mount.png" alt="AM5 mount and telescope" class="mount-image" />
         </div>
       </div>
 
@@ -378,10 +362,7 @@ function continueAlignment() {
             <span>Polar Alignment Preview</span>
 
             <div class="alignment-preview-status">
-              <span
-                class="preview-status-dot"
-                :class="previewStatusClass"
-              ></span>
+              <span class="preview-status-dot" :class="previewStatusClass"></span>
 
               <div>
                 <small>Status</small>
@@ -403,7 +384,7 @@ function continueAlignment() {
                   height: `${star.size}px`,
                   opacity: star.opacity,
                   background: star.color,
-                  animationDelay: `${star.delay}s`
+                  animationDelay: `${star.delay}s`,
                 }"
               ></span>
             </div>
@@ -420,7 +401,7 @@ function continueAlignment() {
               <div
                 class="polar-circle"
                 :style="{
-                  transform: `translate(-50%, -50%) rotate(${previewRotation}deg)`
+                  transform: `translate(-50%, -50%) rotate(${previewRotation}deg)`,
                 }"
               >
                 <div class="ring ring1"></div>
@@ -437,7 +418,7 @@ function continueAlignment() {
                   class="current-position"
                   :class="{ aligned: isAligned }"
                   :style="{
-                    transform: `translate(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px))`
+                    transform: `translate(calc(-50% + ${targetX}px), calc(-50% + ${targetY}px))`,
                   }"
                 >
                   <span class="error-badge">
@@ -450,11 +431,7 @@ function continueAlignment() {
 
           <div class="preview-footer">
             <div class="preview-stat">
-              <svg
-                class="stat-icon stat-icon-stars"
-                viewBox="0 0 32 32"
-                aria-hidden="true"
-              >
+              <svg class="stat-icon stat-icon-stars" viewBox="0 0 32 32" aria-hidden="true">
                 <path
                   d="M16 2l2.2 8.1L26 12l-7.8 2L16 22l-2.2-8L6 12l7.8-1.9L16 2z"
                   fill="currentColor"
@@ -466,11 +443,7 @@ function continueAlignment() {
             </div>
 
             <div class="preview-stat">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 32 32"
-                aria-hidden="true"
-              >
+              <svg class="stat-icon" viewBox="0 0 32 32" aria-hidden="true">
                 <polyline
                   points="2,18 7,18 10,12 14,24 18,8 22,18 30,18"
                   fill="none"
@@ -486,11 +459,7 @@ function continueAlignment() {
             </div>
 
             <div class="preview-stat">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 32 32"
-                aria-hidden="true"
-              >
+              <svg class="stat-icon" viewBox="0 0 32 32" aria-hidden="true">
                 <circle
                   cx="16"
                   cy="16"
@@ -528,7 +497,6 @@ function continueAlignment() {
         </div>
       </aside>
     </section>
-    
 
     <section class="instruction-card">
       <template v-if="!alignmentStarted">
@@ -740,6 +708,7 @@ function continueAlignment() {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr);
   gap: 22px;
+  align-items: start;
 }
 
 .pa-settings-card,
@@ -756,7 +725,6 @@ function continueAlignment() {
 }
 .pa-settings-card {
   position: relative;
-  min-height: 400px;
   padding: 22px;
   overflow: hidden;
 }
@@ -779,11 +747,10 @@ function continueAlignment() {
   user-select: none;
 }
 
-.mount-illustration svg {
+.mount-image {
   display: block;
   width: 100%;
   height: auto;
-  overflow: visible;
 }
 .mount-illustration {
   filter: drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38));
@@ -1863,13 +1830,13 @@ to {
 @media (max-width: 980px) {
   .pa-layout {
     grid-template-columns: 1fr;
-      .settings-grid {
-    width: calc(100% - 250px);
-  }
+    .settings-grid {
+      width: calc(100% - 250px);
+    }
 
-  .mount-illustration {
-    width: 235px;
-  }
+    .mount-illustration {
+      width: 235px;
+    }
   }
 
   .instruction-card {
@@ -1883,7 +1850,7 @@ to {
 }
 
 @media (max-width: 650px) {
-    .pa-settings-card {
+  .pa-settings-card {
     min-height: auto;
   }
 
@@ -1981,101 +1948,101 @@ to {
     box-shadow: 0 0 6px rgba(121, 183, 255, 0.75);
   }
   .mount-illustration .scope-body {
-  fill: #ffffff;
-  stroke: #38bdf8;
-  stroke-width: 4;
-}
+    fill: #ffffff;
+    stroke: #38bdf8;
+    stroke-width: 4;
+  }
 
-.mount-illustration .mount-base,
-.mount-illustration .mount-head,
-.mount-illustration .ra-arm,
-.mount-illustration .scope-camera {
-  fill: #ef2b2d;
-  stroke: #ffaaa8;
-  stroke-width: 3;
-}
+  .mount-illustration .mount-base,
+  .mount-illustration .mount-head,
+  .mount-illustration .ra-arm,
+  .mount-illustration .scope-camera {
+    fill: #ef2b2d;
+    stroke: #ffaaa8;
+    stroke-width: 3;
+  }
 
-.mount-illustration .scope-lens {
-  fill: #00b7ff;
-  stroke: #b9ecff;
-  stroke-width: 4;
-}
+  .mount-illustration .scope-lens {
+    fill: #00b7ff;
+    stroke: #b9ecff;
+    stroke-width: 4;
+  }
 
-.mount-illustration .tripod-leg {
-  stroke: #a7b6c8;
-  stroke-width: 14;
-}
-.mount-ra-assembly {
-  transform-box: view-box;
-  transform-origin: 184px 134px;
-  transition: transform 2.2s ease-in-out;
-}
-.mount-illustration {
-  position: absolute;
-  right: 32px;
-  top: 175px;
-  bottom: 90px;
-  width: 500px;
+  .mount-illustration .tripod-leg {
+    stroke: #a7b6c8;
+    stroke-width: 14;
+  }
+  .mount-ra-assembly {
+    transform-box: view-box;
+    transform-origin: 184px 134px;
+    transition: transform 2.2s ease-in-out;
+  }
+  .mount-illustration {
+    position: absolute;
+    right: 32px;
+    top: 175px;
+    bottom: 90px;
+    width: 500px;
 
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
 
-  pointer-events: none;
-  user-select: none;
-  z-index: 2;
-}
+    pointer-events: none;
+    user-select: none;
+    z-index: 2;
+  }
 
-.mount-image {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: center bottom;
+  .mount-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center bottom;
 
-  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.4));
-}
+    filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.4));
+  }
 
-.settings-grid {
-  position: relative;
-  z-index: 3;
-  width: calc(100% - 530px);
-}
-.mount-illustration {
-  position: absolute;
-  right: 34px;
-  top: 170px;
-  bottom: 88px;
-  width: 500px;
+  .settings-grid {
+    position: relative;
+    z-index: 3;
+    width: calc(100% - 530px);
+  }
+  .mount-illustration {
+    position: absolute;
+    right: 34px;
+    top: 170px;
+    bottom: 88px;
+    width: 500px;
 
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
 
-  pointer-events: none;
-  user-select: none;
-  z-index: 2;
-}
+    pointer-events: none;
+    user-select: none;
+    z-index: 2;
+  }
 
-.mount-image {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: center bottom;
+  .mount-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center bottom;
 
-  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.4));
-}
+    filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.4));
+  }
 
-.settings-grid {
-  position: relative;
-  z-index: 3;
-  width: calc(100% - 530px);
-}
+  .settings-grid {
+    position: relative;
+    z-index: 3;
+    width: calc(100% - 530px);
+  }
 
-.pa-settings-card {
-  position: relative;
-  overflow: hidden;
-}
+  .pa-settings-card {
+    position: relative;
+    overflow: hidden;
+  }
 }
 </style>
