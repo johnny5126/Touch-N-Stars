@@ -1,1153 +1,802 @@
+<script setup>
+import { computed, ref } from 'vue';
+
+// --- App & Equipment State ---
+const appTitle = ref('AstroAlign');
+const appVersion = ref('v3.2.0');
+const isBusy = ref(false);
+const isAutoRefreshing = ref(true);
+const statusMessage = ref('Target Solved - Ready for Adjustment');
+
+// Connected Devices Telemetry
+const cameraModel = ref('Primary CMOS Camera');
+const resolution = ref('5496 x 3672');
+const gain = ref(53);
+const sensorTemp = ref(0.5);
+const coolerPower = ref(33);
+const expTime = ref(2.0);
+
+// Polar Axis Adjustment Offsets (Arc-seconds)
+const altOffsetSeconds = ref(27); // +: Down / -: Up
+const azOffsetSeconds = ref(7);   // +: Left / -: Right
+
+// Computed Total Error Vector
+const totalErrorSeconds = computed(() => {
+  return Math.round(Math.hypot(altOffsetSeconds.value, azOffsetSeconds.value));
+});
+
+// Converts Arc-seconds into standard Astronomical DMS notation
+function formatAngle(totalSec) {
+  const absSec = Math.round(Math.abs(totalSec));
+  const deg = Math.floor(absSec / 3600);
+  const min = Math.floor((absSec % 3600) / 60);
+  const sec = absSec % 60;
+
+  const pad = (num) => String(num).padStart(2, '0');
+  return `${pad(deg)}° ${pad(min)}' ${pad(sec)}"`;
+}
+
+// Map offset values to Scope Reticle Coordinates
+const raTargetStyle = computed(() => {
+  const scale = 2.2;
+  const translateX = azOffsetSeconds.value * scale;
+  const translateY = altOffsetSeconds.value * scale;
+
+  return {
+    transform: `translate(calc(-50% + ${translateX}px), calc(-50% + ${translateY}px))`,
+  };
+});
+
+// Alignment Threshold Status
+const qualityStatus = computed(() => {
+  if (totalErrorSeconds.value <= 15) return { icon: '🎯', label: 'EXCELLENT', color: '#10b981', badgeClass: 'good' };
+  if (totalErrorSeconds.value <= 45) return { icon: '⚠️', label: 'ACCEPTABLE', color: '#f59e0b', badgeClass: 'warn' };
+  return { icon: '🚨', label: 'POOR ALIGNMENT', color: '#ef4444', badgeClass: 'poor' };
+});
+
+function handleRefresh() {
+  if (isBusy.value) return;
+  isBusy.value = true;
+  statusMessage.value = 'Exposing & Solving Field...';
+
+  setTimeout(() => {
+    if (altOffsetSeconds.value > 2) altOffsetSeconds.value = Math.max(0, altOffsetSeconds.value - Math.floor(Math.random() * 8 + 3));
+    if (azOffsetSeconds.value > 1) azOffsetSeconds.value = Math.max(0, azOffsetSeconds.value - Math.floor(Math.random() * 3 + 1));
+
+    statusMessage.value = 'Plate Solve Complete';
+    isBusy.value = false;
+  }, 1100);
+}
+
+function handleFinish() {
+  statusMessage.value = 'Polar Alignment Locked';
+}
+</script>
+
 <template>
-  <div class="dark min-h-screen bg-gray-900 text-white">
-    <div :class="appLayoutClasses">
-      <!-- Navigation -->
-      <nav v-if="$route.name !== 'polar-alignment'">
-        <div :class="navContainerClasses">
-          <NavigationComp />
+  <div class="align-shell">
+    <!-- Top Navigation Header -->
+    <header class="top-nav">
+      <div class="brand-group">
+        <span class="brand-title">{{ appTitle }}</span>
+        <span class="brand-ver">{{ appVersion }}</span>
+        <div class="battery-status" title="System Battery">
+          <div class="battery-pill"><div class="battery-fill" style="width: 100%"></div></div>
+          <span>100%</span>
         </div>
-      </nav>
-      <!-- Logo Splash Screen -->
-      <Transition name="splash">
-        <div
-          v-if="shouldShowConnectionSplash"
-          class="fixed inset-0 z-40 flex flex-col items-center justify-center bg-gray-900 p-4"
-        >
-          <!-- Minimaler Status-Text -->
-          <p
-            v-if="!store.isBackendReachable && connectionCheckCompleted"
-            class="absolute top-5 left-1/2 transform -translate-x-1/2 text-red-400 text-sm sm:text-base font-medium animate-pulse bg-gray-800 px-4 py-2 rounded-lg border border-red-500/30 max-w-[calc(100%-2rem)] text-center"
-          >
-            {{ connectionStatusMessage }}
-          </p>
+      </div>
 
-          <!-- Settings Button -->
-          <button
-            v-if="!store.isBackendReachable && connectionCheckCompleted"
-            @click="showSettingsModal = true"
-            class="absolute bottom-10 left-1/2 transform -translate-x-1/2 px-4 py-2 sm:px-6 sm:py-3 bg-gray-700 hover:bg-gray-600 text-white text-sm sm:text-base rounded-lg border border-gray-600 hover:border-gray-500 transition-colors flex items-center gap-2"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 sm:h-5 sm:w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
+      <div class="device-toolbar">
+        <button class="tool-btn active" title="Wi-Fi Link">📶 LINK</button>
+        <button class="tool-btn active" title="Main Imaging Camera">📷 CAM</button>
+        <button class="tool-btn active" title="Guiding Camera">🎯 GUIDE</button>
+        <button class="tool-btn active" title="Equatorial Mount">🔭 MOUNT</button>
+        <button class="tool-btn active" title="Electronic Focuser">🔍 EAF</button>
+        <button class="tool-btn active" title="Power Hub">⚡ PWR</button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <main class="deck-body">
+      <!-- Left Sidebar: Workflow & Mount Orientation -->
+      <aside class="panel-left">
+        <div class="panel-section">
+          <div class="panel-title">WORKFLOW</div>
+          <div class="stepper-vertical">
+            <div class="step-item completed">
+              <div class="step-node">✓</div>
+              <div class="step-text">
+                <span class="step-num">STEP 1</span>
+                <span class="step-name">Calibrate</span>
+              </div>
+            </div>
+            <div class="step-line completed"></div>
+
+            <div class="step-item completed">
+              <div class="step-node">✓</div>
+              <div class="step-text">
+                <span class="step-num">STEP 2</span>
+                <span class="step-name">Rotate Axis</span>
+              </div>
+            </div>
+            <div class="step-line completed"></div>
+
+            <div class="step-item active">
+              <div class="step-node">3</div>
+              <div class="step-text">
+                <span class="step-num">STEP 3</span>
+                <span class="step-name">Adjust Knobs</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section mount-section">
+          <div class="mount-schema-card">
+            <div class="schema-title">MOUNT ORIENTATION</div>
+            <svg class="mount-svg" viewBox="0 0 120 85" fill="none">
+              <path d="M60 60 L38 82 M60 60 L60 85 M60 60 L82 82" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+              <polygon points="46,60 74,60 67,45 53,45" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+              <circle cx="60" cy="34" r="10" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+              <line x1="51" y1="41" x2="35" y2="53" stroke="#64748b" stroke-width="2"/>
+              <circle cx="35" cy="53" r="3" fill="#94a3b8"/>
+              <g transform="rotate(-30 60 22)">
+                <rect x="45" y="6" width="30" height="26" rx="2" fill="#1e293b" stroke="#00f2fe" stroke-width="1.5"/>
+              </g>
+              <path d="M 78 22 C 88 22, 88 42, 78 42" stroke="#10b981" stroke-width="1.2" stroke-dasharray="2 2" fill="none"/>
+              <polygon points="78,20 82,24 74,24" fill="#10b981"/>
+              <text x="90" y="29" fill="#10b981" font-size="9" font-weight="bold">ALT</text>
+              <text x="90" y="40" fill="#38bdf8" font-size="9" font-weight="bold">AZ</text>
             </svg>
-            {{ $t('components.settings.title') }}
-          </button>
-
-          <h1 class="text-3xl sm:text-4xl md:text-5xl text-yellow-50 font-mono font-bold mb-4">
-            {{ $t('app.title') }}
-          </h1>
-          <img
-            class="w-72 h-72"
-            src="@/assets/Logo_TouchNStars_600x600.png"
-            alt="TouchNStars Logo"
-          />
+          </div>
         </div>
-      </Transition>
 
-      <div v-if="!shouldShowConnectionSplash" :class="mainContentClasses">
-        <StellariumView
-          v-show="store.showStellarium && !isDashboardRoute"
-          v-if="settingsStore.setupCompleted && store.isBackendReachable"
-          :key="stellariumRefreshKey"
-        />
-
-        <router-view />
-      </div>
-      <!-- Footer -->
-      <div v-if="settingsStore.setupCompleted && !isDashboardRoute" :class="statusBarClasses">
-        <StatusBar />
-      </div>
-    </div>
-
-    <!-- Logs Modal -->
-    <div
-      v-if="showLogsModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-    >
-      <div
-        class="bg-gray-900 rounded-lg p-4 sm:p-6 w-full sm:max-w-4xl h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0 scrollbar-hide"
-      >
-        <button
-          @click="showLogsModal = false"
-          class="fixed sm:absolute top-2 right-2 sm:top-4 sm:right-4 p-2 text-gray-400 hover:text-white bg-gray-900 rounded-full"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
-    <!-- Tutorial Modal -->
-    <TutorialModal v-if="showTutorial" :steps="tutorialSteps" @close="closeTutorial" />
-    <!-- Error Modal -->
-    <ToastModal v-if="settingsStore.setupCompleted || store.setupCheckConnectionDone" />
-    <!-- Debug Console -->
-    <ConsoleViewer class="fixed top-32 right-6 z-60" v-if="settingsStore.showDebugConsole" />
-    <!-- LocationSyncModal -->
-    <LocationSyncModal />
-
-    <!-- PINS Upgrade Blocking Modal -->
-    <Modal
-      :show="pinsStore.shouldShowUpgradeOverlay"
-      maxWidth="max-w-lg"
-      :disableClose="true"
-      :closeOnBackdropClick="false"
-      zIndex="z-[80]"
-    >
-      <template #header>
-        <h2 class="text-xl font-bold text-blue-300">
-          {{ $t('plugins.pins.upgradeOverlay.title') }}
-        </h2>
-      </template>
-      <template #body>
-        <div class="flex flex-col items-center text-center gap-4 w-full">
-          <svg
-            class="h-10 w-10 text-blue-400"
-            :class="pinsStore.isUpgradeRunning ? 'animate-spin' : 'animate-pulse'"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            />
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-          <p class="text-gray-200 text-sm sm:text-base">
-            {{ pinsUpgradeOverlayMessage }}
-          </p>
-          <p class="text-xs text-gray-400">
-            {{ $t('plugins.pins.upgradeOverlay.keepOpen') }}
-          </p>
-          <p v-if="pinsStore.currentJobId" class="text-xs text-blue-300 font-mono break-all">
-            {{ $t('plugins.pins.upgradeOverlay.jobId', { jobId: pinsStore.currentJobId }) }}
-          </p>
-          <button
-            @click="closePinsUpgradeOverlay"
-            class="mt-2 px-4 py-2 text-sm text-gray-300 hover:text-white border border-gray-600 hover:border-gray-400 rounded transition-colors"
-          >
-            {{ $t('plugins.pins.upgradeOverlay.close') }}
-          </button>
+        <div class="reticle-legend">
+          <div class="legend-item"><span class="dot green"></span> True Pole (NCP)</div>
+          <div class="legend-item"><span class="dot yellow"></span> Mount RA Axis</div>
         </div>
-      </template>
-    </Modal>
+      </aside>
 
-    <!-- Update Available Modal -->
-    <UpdateAvailableModal
-      v-if="showUpdateModal && updateInfo"
-      :version="updateInfo.version"
-      :release-notes="updateInfo.notes"
-      :whats-new="updateInfo.whatsNew"
-      :progress="updateProgress"
-      :status="updateStatus"
-      :error="updateError"
-      :is-downgrade="updateInfo.isDowngrade || false"
-      @confirm="handleUpdateConfirm"
-      @cancel="handleUpdateCancel"
-    />
+      <!-- Center Reticle Viewport -->
+      <section class="panel-center">
+        <!-- SVG Scope -->
+        <div class="reticle-container">
+          <svg class="scope-svg" viewBox="0 0 360 360">
+            <defs>
+              <radialGradient id="reticleGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#0284c7" stop-opacity="0.15"/>
+                <stop offset="100%" stop-color="#020617" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
 
-    <!-- What's New Modal -->
-    <WhatsNewModal
-      v-if="showWhatsNew && whatsNewData"
-      :data="whatsNewData"
-      @close="dismissWhatsNew"
-    />
+            <!-- Background Outer Field -->
+            <circle cx="180" cy="180" r="130" fill="url(#reticleGlow)" stroke="#1e293b" stroke-width="1.5"/>
 
-    <!-- Dialog Modal -->
-    <DialogModal />
+            <!-- Axis Crosshairs -->
+            <line x1="180" y1="30" x2="180" y2="330" stroke="#334155" stroke-width="1" stroke-dasharray="6 4"/>
+            <line x1="30" y1="180" x2="330" y2="180" stroke="#334155" stroke-width="1" stroke-dasharray="6 4"/>
 
-    <!-- MessageBox Modal -->
-    <MessageBoxModal />
+            <!-- Concentric Reticle Rings -->
+            <circle cx="180" cy="180" r="130" stroke="#334155" stroke-width="1.5" fill="none"/>
+            <circle cx="180" cy="180" r="85" stroke="#1e293b" stroke-width="1" stroke-dasharray="3 3" fill="none"/>
+            <circle cx="180" cy="180" r="42" stroke="#334155" stroke-width="1" fill="none"/>
+            <circle cx="180" cy="180" r="15" stroke="#10b981" stroke-width="1" stroke-opacity="0.4" fill="none"/>
 
-    <!-- Picker Overlay Component -->
-    <PickerOverlay />
+            <!-- Angular Distance Callouts -->
+            <text x="226" y="174" fill="#64748b" font-size="9" font-family="monospace">3'</text>
+            <text x="270" y="174" fill="#64748b" font-size="9" font-family="monospace">5'</text>
 
-    <!-- PINS Time Warning Modal -->
-    <Modal
-      :show="showTimeWarningModal"
-      @close="showTimeWarningModal = false"
-      maxWidth="max-w-md"
-      :closeOnBackdropClick="false"
-    >
-      <template #header>
-        <h2 class="text-xl font-bold text-yellow-400">
-          {{ $t('plugins.pins.timeWarning.title') }}
-        </h2>
-      </template>
-      <template #body>
-        <div class="flex flex-col gap-4 w-full text-sm">
-          <p class="text-gray-300">
-            {{
-              $t('plugins.pins.timeWarning.message', {
-                clientTime: timeWarningClientTime,
-                deviceTime: timeWarningDeviceTime,
-              })
-            }}
-          </p>
-          <button
-            @click="
-              syncPinsTimeToClient();
-              showTimeWarningModal = false;
-            "
-            class="w-full py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors"
-          >
-            {{ $t('plugins.pins.timeWarning.setTime') }}
-          </button>
-          <label class="flex items-center gap-2 cursor-pointer text-gray-300">
-            <input
-              type="checkbox"
-              :checked="pinsStore.suppressTimeWarning"
-              @change="pinsStore.setSuppressTimeWarning($event.target.checked)"
-              class="w-4 h-4"
-            />
-            <span>{{ $t('plugins.pins.timeWarning.suppress') }}</span>
+            <!-- Directional Labels (Tightened inward to avoid any clipping) -->
+            <text x="180" y="22" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">UP (ALT -)</text>
+            <text x="180" y="344" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">DOWN (ALT +)</text>
+            <text x="12" y="183" fill="#38bdf8" font-size="10" font-weight="bold">RIGHT (AZ -)</text>
+            <text x="348" y="183" fill="#38bdf8" font-size="10" font-weight="bold" text-anchor="end">LEFT (AZ +)</text>
+
+            <!-- Fixed True Celestial Pole Center Target (Green) -->
+            <g transform="translate(180, 180)">
+              <circle cx="0" cy="0" r="3.5" fill="#10b981"/>
+              <circle cx="0" cy="0" r="8" stroke="#10b981" stroke-width="1.5" fill="none"/>
+              <line x1="-12" y1="0" x2="12" y2="0" stroke="#10b981" stroke-width="1"/>
+              <line x1="0" y1="-12" x2="0" y2="12" stroke="#10b981" stroke-width="1"/>
+            </g>
+          </svg>
+
+          <!-- Dynamic RA Target Marker -->
+          <div class="ra-target-marker" :style="raTargetStyle">
+            <div class="target-ring"></div>
+            <span class="target-readout">{{ formatAngle(totalErrorSeconds) }}</span>
+          </div>
+        </div>
+
+        <!-- Solver Status Toast (Moved OUTSIDE reticle-container so it never overlaps SVG text) -->
+        <div class="status-toast" :class="{ busy: isBusy }">
+          <span class="status-dot"></span>
+          <span>{{ statusMessage }}</span>
+        </div>
+      </section>
+
+      <!-- Right Sidebar: Metrics & Action Dock -->
+      <aside class="panel-right">
+        <div class="panel-title">ALIGNMENT METRICS</div>
+
+        <!-- Status Card -->
+        <div class="quality-card" :class="qualityStatus.badgeClass">
+          <span class="quality-icon">{{ qualityStatus.icon }}</span>
+          <div class="quality-info">
+            <span class="quality-title">STATUS</span>
+            <span class="quality-value" :style="{ color: qualityStatus.color }">{{ qualityStatus.label }}</span>
+          </div>
+        </div>
+
+        <!-- Correction Vectors -->
+        <div class="vectors-card">
+          <div class="vector-title">CORRECTION KNOBS</div>
+
+          <div class="vector-row">
+            <div class="axis-tag">
+              <span class="axis-label">ALTITUDE</span>
+              <span class="axis-sub">(Alt Knob)</span>
+            </div>
+            <div class="vector-value-box">
+              <span class="arrow down">↓ Turn Down</span>
+              <span class="angle">{{ formatAngle(altOffsetSeconds) }}</span>
+            </div>
+          </div>
+
+          <div class="vector-row">
+            <div class="axis-tag">
+              <span class="axis-label">AZIMUTH</span>
+              <span class="axis-sub">(Az Knob)</span>
+            </div>
+            <div class="vector-value-box">
+              <span class="arrow left">← Turn Left</span>
+              <span class="angle">{{ formatAngle(azOffsetSeconds) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Total Polar Error Display -->
+        <div class="total-error-box">
+          <span class="error-heading">TOTAL POLAR ERROR</span>
+          <span class="error-value" :style="{ color: qualityStatus.color }">
+            {{ formatAngle(totalErrorSeconds) }}
+          </span>
+          <span class="error-raw">({{ totalErrorSeconds }} Arcseconds)</span>
+        </div>
+
+        <!-- Spacer pushes control dock nicely to bottom -->
+        <div class="panel-spacer"></div>
+
+        <!-- Execution Control Dock -->
+        <div class="control-dock">
+          <div class="dock-row">
+            <div class="shutter-wrapper">
+              <button class="shutter-trigger" :class="{ busy: isBusy }" @click="handleRefresh" title="Capture & Solve">
+                <span class="shutter-core"></span>
+              </button>
+              <div class="exp-setting">
+                <span class="exp-title">EXP</span>
+                <span class="exp-time">{{ expTime }}s</span>
+              </div>
+            </div>
+
+            <button class="btn btn-refresh" :disabled="isBusy" @click="handleRefresh">
+              {{ isBusy ? 'Solving...' : 'Refresh' }}
+            </button>
+          </div>
+
+          <button class="btn btn-finish" @click="handleFinish">Lock & Finish</button>
+
+          <label class="auto-check">
+            <input v-model="isAutoRefreshing" type="checkbox" />
+            <span>Auto Loop</span>
           </label>
-          <button
-            @click="showTimeWarningModal = false"
-            class="w-full py-2 rounded bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-          >
-            {{ $t('plugins.pins.timeWarning.dismiss') }}
-          </button>
         </div>
-      </template>
-    </Modal>
+      </aside>
+    </main>
 
-    <!-- Settings Modal -->
-    <div
-      v-if="showSettingsModal"
-      class="fixed inset-0 z-top flex items-center justify-center bg-black bg-opacity-50"
-    >
-      <div
-        class="bg-gray-900 rounded-lg w-full h-full sm:w-auto sm:h-auto sm:max-w-4xl sm:max-h-[90vh] overflow-y-auto mx-0 sm:mx-4 scrollbar-hide"
-      >
-        <div
-          class="sticky top-0 z-10 bg-gray-900 p-4 border-b border-gray-700 flex justify-between items-center"
-        >
-          <h2 class="text-xl font-bold text-white">{{ $t('components.settings.title') }}</h2>
-          <button
-            @click="showSettingsModal = false"
-            class="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-full"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-        <div class="p-4">
-          <SettingsComp />
-        </div>
+    <!-- Bottom Telemetry Bar -->
+    <footer class="bottom-bar">
+      <div class="telemetry-group">
+        <div class="tel-item"><span class="tel-key">CAM:</span> <span class="tel-val">{{ cameraModel }}</span></div>
+        <div class="tel-item"><span class="tel-key">RES:</span> <span class="tel-val">{{ resolution }}</span></div>
+        <div class="tel-item"><span class="tel-key">GAIN:</span> <span class="tel-val">{{ gain }}</span></div>
+        <div class="tel-item"><span class="tel-key">TEMP:</span> <span class="tel-val">{{ sensorTemp }}°C</span></div>
+        <div class="tel-item"><span class="tel-key">COOL:</span> <span class="tel-val">{{ coolerPower }}%</span></div>
       </div>
-    </div>
+      <div class="system-time">UTC 22:47:04</div>
+    </footer>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
-import axios from 'axios';
-import { apiStore } from '@/store/store';
-import { useImagetStore } from './store/imageStore';
-import { useSettingsStore } from '@/store/settingsStore';
-import { useHead } from '@unhead/vue';
-import { Capacitor } from '@capacitor/core';
-import { App as CapacitorApp } from '@capacitor/app';
-import { CapacitorUpdater } from '@capgo/capacitor-updater';
-import { KeepAwake } from '@capacitor-community/keep-awake';
-import NavigationComp from '@/components/NavigationComp.vue';
-import StellariumView from './views/StellariumView.vue';
-import { useLogStore } from '@/store/logStore';
-import { useSequenceStore } from './store/sequenceStore';
-import { useCameraStore } from './store/cameraStore';
-import { useDialogStore } from './store/dialogStore';
-import { useMessageboxStore } from './store/messageboxStore';
-import { usePickerStore } from '@/store/pickerStore';
-import { useI18n } from 'vue-i18n';
-import TutorialModal from '@/components/TutorialModal.vue';
-import ToastModal from '@/components/helpers/ToastModal.vue';
-import ConsoleViewer from '@/components/helpers/ConsoleViewer.vue';
-import StatusBar from '@/components/status/StatusBar.vue';
-import SettingsComp from '@/components/SettingsComp.vue';
-import LocationSyncModal from '@/components/helpers/LocationSyncModal.vue';
-import { useOrientation } from '@/composables/useOrientation';
-import { useRoute } from 'vue-router';
-import WhatsNewModal from '@/components/helpers/WhatsNewModal.vue';
-import DialogModal from '@/components/helpers/DialogModal.vue';
-import MessageBoxModal from '@/components/helpers/MessageBoxModal.vue';
-import UpdateAvailableModal from '@/components/helpers/UpdateAvailableModal.vue';
-import PickerOverlay from '@/components/helpers/PickerOverlay.vue';
-import Modal from '@/components/helpers/Modal.vue';
-import { usePinsStore } from '@/plugins/pins/store/pinsStore';
-import { useFlatassistantStore } from '@/store/flatassistantStore';
-import { useNightSummaryStore } from '@/plugins/nightsummary/store/nightsummaryStore';
-import {
-  checkForManualUpdate,
-  downloadAndApplyUpdate,
-  fetchChangelogWhatsNew,
-  isNativePlatform,
-} from '@/services/updateService';
-import { getDeviceDateTimePayload, parsePinsTimeToSeconds } from '@/utils/pinsTimeUtils';
-
-const store = apiStore();
-const settingsStore = useSettingsStore();
-const pinsStore = usePinsStore();
-const nightSummaryStore = useNightSummaryStore();
-const route = useRoute();
-const isDashboardRoute = computed(
-  () => route.path === '/dashboard' || route.path === '/plan' || route.path === '/choose-target'
-);
-const showTimeWarningModal = ref(false);
-const timeWarningClientTime = ref('');
-const timeWarningDeviceTime = ref('');
-
-const PINS_PORT = 8000;
-const PINS_TOKEN = 'zZDqJ3IKeFaIZqG2JIFvsxzA5E48GC2gyGVagHFZqC0OMtgoupUDZCPhQDYKm35d';
-
-async function checkPinsTimeMismatch() {
-  if (pinsStore.suppressTimeWarning) return;
-  const ip = settingsStore.connection.ip || window.location.hostname;
-  if (!ip) return;
-  try {
-    const directAxios = axios.create({ headers: {} });
-    const response = await directAxios.get(`http://${ip}:${PINS_PORT}/system/time`, {
-      headers: { Authorization: `Bearer ${PINS_TOKEN}` },
-      timeout: 5000,
-    });
-    const deviceTimestamp = parsePinsTimeToSeconds(response.data);
-    if (deviceTimestamp !== null) {
-      const clientTimestamp = Date.now() / 1000;
-      const diff = Math.abs(deviceTimestamp - clientTimestamp);
-      if (diff > 60) {
-        timeWarningClientTime.value = new Date(clientTimestamp * 1000).toLocaleTimeString();
-        timeWarningDeviceTime.value = new Date(deviceTimestamp * 1000).toLocaleTimeString();
-        showTimeWarningModal.value = true;
-      }
-    }
-  } catch (e) {
-    console.warn('[TimeWarning] Could not fetch PINS time:', e.message);
-  }
+<style>
+/* 
+  Global Override: Nuke all browser margins, paddings, and bounds.
+  This breaks Vite's default CSS caching and forces the window to clear scrollbars.
+*/
+html, body, #app {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  background-color: #020617;
 }
 
-async function syncPinsTimeToClient() {
-  const ip = settingsStore.connection.ip || window.location.hostname;
-  if (!ip) return;
-  try {
-    const directAxios = axios.create({ headers: {} });
-    const payload = getDeviceDateTimePayload();
-    await directAxios.post(`http://${ip}:${PINS_PORT}/system/time`, payload, {
-      headers: {
-        Authorization: `Bearer ${PINS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 5000,
-    });
-  } catch (e) {
-    console.warn('[TimeWarning] Could not set PINS time:', e.message);
-  }
+body > div {
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
 }
-
-watch(
-  () => store.isPINS,
-  (isPINS) => {
-    if (isPINS) {
-      setTimeout(checkPinsTimeMismatch, 3000);
-    }
-  }
-);
-const sequenceStore = useSequenceStore();
-const logStore = useLogStore();
-const flatsStore = useFlatassistantStore();
-
-// Global flat run outcome — fires regardless of which page is active.
-// prevRun !== null guard mirrors the original page watcher: first setter wins,
-// so fetchFlatsInfos (Running-state values) beats waitForCompletion (Finished-state
-// values which NINA may zero out).
-watch(
-  () => flatsStore.lastRun,
-  (run, prevRun) => {
-    if (!run || prevRun !== null) return;
-    flatsStore.commitRunOutcome(run);
-  }
-);
-const cameraStore = useCameraStore();
-const dialogStore = useDialogStore();
-const messageboxStore = useMessageboxStore();
-const imageStore = useImagetStore();
-const showLogsModal = ref(false);
-const showTutorial = ref(false);
-const showSplashScreen = ref(true);
-const showSettingsModal = ref(false);
-const showWhatsNew = ref(false);
-const whatsNewData = ref(null);
-const whatsNewPending = ref(false);
-const connectionCheckCompleted = ref(false);
-const { t, locale } = useI18n();
-const CONNECTION_STALL_HINT_SECONDS = 10;
-const connectionAttemptStartedAt = ref(Date.now());
-const connectionElapsedSeconds = ref(0);
-let connectionElapsedIntervalId = null;
-const tutorialSteps = computed(() => settingsStore.tutorial.steps);
-const orientation = ref(window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
-const landscapeSwitch = ref(null);
-const stellariumRefreshKey = ref(null);
-const routerViewKey = ref(Date.now());
-const showUpdateModal = ref(false);
-const updateInfo = ref(null);
-const updateStatus = ref('idle');
-const updateProgress = ref(0);
-const updateError = ref('');
-const dismissedUpdateVersion = ref(null);
-const checkingUpdate = ref(false);
-let initialWidth = window.innerWidth;
-let initialHeight = window.innerHeight;
-let pinsUpgradeRecoveryTimer = null;
-
-// Orientation tracking
-const { isLandscape } = useOrientation();
-
-useHead({
-  title: 'TouchNStars',
-});
-
-function checkOrientationChange() {
-  // Force re-render of StellariumView when orientation changes
-  if (store.showStellarium) {
-    landscapeSwitch.value = Date.now();
-  }
-}
-
-function updateOrientation() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
-  // Check if width and height changed significantly
-  if (Math.abs(width - initialWidth) > 100 && Math.abs(height - initialHeight) > 100) {
-    const newOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-
-    if (newOrientation !== orientation.value) {
-      orientation.value = newOrientation;
-      checkOrientationChange(); // Force re-render of StellariumView
-      routerViewKey.value = Date.now();
-      console.log('Orientation changed, re-rendering router-view:', newOrientation);
-    }
-
-    initialWidth = width;
-    initialHeight = height;
-  } else {
-    // Also check orientation for small changes (for better responsiveness)
-    checkOrientationChange();
-  }
-}
-
-// Computed classes for responsive layout
-const appLayoutClasses = computed(() => ({
-  'app-portrait': !isLandscape.value,
-  'app-landscape': isLandscape.value,
-}));
-
-const navContainerClasses = computed(() => ({
-  'z-20 fixed top-0 w-full': !isLandscape.value,
-  'z-20 fixed left-0 top-0 h-full': isLandscape.value,
-}));
-
-const mainContentClasses = computed(() => ({
-  'container mx-auto transition-all pt-[82px] pb-[calc(2.25rem+env(safe-area-inset-bottom)+0.5rem)]':
-    !isLandscape.value,
-  'transition-all ml-32 mr-4 py-4 pb-16': isLandscape.value,
-}));
-
-const statusBarClasses = computed(() => ({
-  'fixed bottom-0 w-full z-20': !isLandscape.value,
-  'fixed bottom-0 left-32 right-0 z-20': isLandscape.value,
-}));
-
-const shouldShowConnectionSplash = computed(() => {
-  return false;
-});
-
-const pinsUpgradeOverlayMessage = computed(() => {
-  if (pinsStore.isUpgradeWaitingForBackend) {
-    return t('plugins.pins.upgradeOverlay.waitingForApi');
-  }
-  return t('plugins.pins.upgradeOverlay.running');
-});
-
-const connectionTargetLabel = computed(() => {
-  const host =
-    settingsStore.connection.ip ||
-    window.location.hostname ||
-    t('app.connection_splash.configured_instance');
-  const port = settingsStore.connection.port || 5000;
-  return `${host}:${port}`;
-});
-
-const connectionInstanceName = computed(() => {
-  const selectedId = settingsStore.selectedInstanceId;
-  const selectedInstance = selectedId ? settingsStore.getInstance(selectedId) : null;
-  return selectedInstance?.name || t('app.connection_splash.default_instance_name');
-});
-
-const connectionRemainingSeconds = computed(() => {
-  return Math.max(CONNECTION_STALL_HINT_SECONDS - connectionElapsedSeconds.value, 0);
-});
-
-const connectionStatusMessage = computed(() => {
-  if (connectionRemainingSeconds.value === 0) {
-    return t('app.connection_splash.delayed', {
-      instance: connectionInstanceName.value,
-      endpoint: connectionTargetLabel.value,
-      elapsed: connectionElapsedSeconds.value,
-    });
-  }
-
-  return t('app.connection_splash.trying', {
-    instance: connectionInstanceName.value,
-    endpoint: connectionTargetLabel.value,
-    elapsed: connectionElapsedSeconds.value,
-    remaining: connectionRemainingSeconds.value,
-  });
-});
-
-function resetConnectionAttemptTimer() {
-  connectionAttemptStartedAt.value = Date.now();
-  connectionElapsedSeconds.value = 0;
-}
-
-function updateConnectionElapsed() {
-  if (!connectionCheckCompleted.value || store.isBackendReachable) {
-    return;
-  }
-
-  connectionElapsedSeconds.value = Math.floor(
-    (Date.now() - connectionAttemptStartedAt.value) / 1000
-  );
-}
-
-function startConnectionTimer() {
-  if (!connectionElapsedIntervalId) {
-    resetConnectionAttemptTimer();
-    connectionElapsedIntervalId = setInterval(updateConnectionElapsed, 1000);
-  }
-}
-
-function stopConnectionTimer() {
-  if (connectionElapsedIntervalId) {
-    clearInterval(connectionElapsedIntervalId);
-    connectionElapsedIntervalId = null;
-  }
-}
-
-function closePinsUpgradeOverlay() {
-  if (pinsUpgradeRecoveryTimer) {
-    clearTimeout(pinsUpgradeRecoveryTimer);
-    pinsUpgradeRecoveryTimer = null;
-  }
-  pinsStore.resetUpgradeOverlay();
-  try {
-    window.localStorage.removeItem('lastUpgradeJobId');
-    window.localStorage.removeItem('lastUpgradeJobResult');
-  } catch {
-    // Ignore storage cleanup errors.
-  }
-}
-
-function finalizePinsUpgradeRecoveryIfReady() {
-  if (!(pinsStore.isUpgradeWaitingForBackend && store.isBackendReachable)) {
-    return;
-  }
-
-  if (pinsUpgradeRecoveryTimer) {
-    clearTimeout(pinsUpgradeRecoveryTimer);
-  }
-
-  // Require a short stable reachable window before leaving the blocking overlay.
-  pinsUpgradeRecoveryTimer = setTimeout(() => {
-    if (pinsStore.isUpgradeWaitingForBackend && store.isBackendReachable) {
-      pinsStore.finalizeUpgradeRecovery();
-      try {
-        window.localStorage.removeItem('lastUpgradeJobId');
-        window.localStorage.removeItem('lastUpgradeJobResult');
-      } catch {
-        // Ignore storage cleanup errors.
-      }
-    }
-    pinsUpgradeRecoveryTimer = null;
-  }, 1500);
-}
-
-function handleOrientationChange() {
-  setTimeout(() => {
-    updateOrientation();
-  }, 100);
-}
-
-// Global picker functions - delegated to PickerStore
-const pickerStore = usePickerStore();
-
-window.openPickerOverlay = (label, min, max, value, callback, decimalPlaces = 0) => {
-  pickerStore.open(label, min, max, value, callback, decimalPlaces);
-};
-
-window.getPickerValue = () => {
-  return pickerStore.getValueFromDigits();
-};
-
-window.closePickerOverlay = () => {
-  pickerStore.close();
-};
-
-function pauseApp() {
-  console.log('App paused, stopping all intervals...');
-  store.stopFetchingInfo();
-  logStore.stopFetchingLog();
-  sequenceStore.stopFetching();
-  flatsStore.stopFetchingFlats();
-  cameraStore.stopCountdown();
-  dialogStore.stopPolling();
-  // Keine States zurücksetzen - UI bleibt erhalten
-}
-
-async function resumeApp() {
-  console.log('App resumed, restarting intervals...');
-
-  // Set flag for recently returned from background
-  store.setPageReturnedFromBackground();
-  // Important: Re-enable WebSocket Channel Service shouldReconnect flag
-  const wsChannelService = (await import('@/services/websocketChannelSocket')).default;
-  wsChannelService.shouldReconnect = true;
-
-  await store.fetchAllInfos(t);
-  store.startFetchingInfo(t);
-  logStore.startFetchingLog();
-
-  // Check for PINS support first
-  await store.checkForPINS();
-
-  // Initialize dialog updates based on mode
-  if (store.isPINS) {
-    // PINS/Headless mode: Use SignalR for real-time updates
-    await dialogStore.initializeDialogSignalR();
-    await messageboxStore.initializeMessageboxSignalR();
-    flatsStore.startFetchingFlats();
-  } else {
-    // WPF mode: Use polling
-    dialogStore.startPolling();
-  }
-
-  // Clear any stale in-flight fetch flags from before the pause — connections
-  // killed by the OS in background would otherwise leave isImageFetching stuck true.
-  imageStore.isImageFetching = false;
-  imageStore.isSequenceImageFetching = false;
-  imageStore.getImage();
-  if (!sequenceStore.sequenceEdit) {
-    sequenceStore.startFetching();
-  }
-
-  if (isNativePlatform()) {
-    void checkForAppUpdate();
-  }
-}
-
-function handleVisibilityChange() {
-  if (document.hidden) {
-    pauseApp();
-  } else {
-    resumeApp();
-  }
-}
-
-function handlePageShow() {
-  // pageshow is triggered faster than visibilitychange
-  if (!document.hidden) {
-    resumeApp();
-  }
-}
-
-function handleFocus() {
-  // focus event as additional trigger
-  if (!document.hidden) {
-    resumeApp();
-  }
-}
-
-async function checkForAppUpdate(options = {}) {
-  const { allowDowngrade = false } = options;
-
-  if (!isNativePlatform() || checkingUpdate.value || showUpdateModal.value) {
-    return;
-  }
-
-  checkingUpdate.value = true;
-  try {
-    // Resolve currently active OTA bundle version first to avoid re-offering the same update.
-    let currentBundleVersion;
-    try {
-      const current = await CapacitorUpdater.current();
-      const versionFromBundle = current?.bundle?.version;
-      currentBundleVersion =
-        versionFromBundle && versionFromBundle !== 'builtin'
-          ? versionFromBundle
-          : current?.native || undefined;
-    } catch (currentVersionError) {
-      console.warn('Failed to resolve current bundle version in App.vue:', currentVersionError);
-      currentBundleVersion = undefined;
-    }
-
-    const result = await checkForManualUpdate(currentBundleVersion, { allowDowngrade });
-
-    if (result?.available && currentBundleVersion && result.version === currentBundleVersion) {
-      // Extra guard in case update service fallback/version parsing returns a false positive.
-      return;
-    }
-
-    if (result?.available && result.version !== dismissedUpdateVersion.value) {
-      let whatsNewDetails = null;
-      try {
-        whatsNewDetails = await fetchChangelogWhatsNew(result);
-        console.info('Update whats-new content resolved:', whatsNewDetails);
-      } catch (whatsNewError) {
-        console.warn('Failed to load whats-new content:', whatsNewError);
-      }
-
-      updateInfo.value = {
-        ...result,
-        whatsNew: whatsNewDetails,
-      };
-      updateStatus.value = 'idle';
-      updateProgress.value = 0;
-      updateError.value = '';
-      showUpdateModal.value = true;
-    }
-  } catch (error) {
-    console.warn('Update check failed:', error);
-  } finally {
-    checkingUpdate.value = false;
-  }
-}
-
-async function handleUpdateConfirm() {
-  if (!updateInfo.value || updateStatus.value === 'downloading') {
-    return;
-  }
-
-  updateStatus.value = 'downloading';
-  updateError.value = '';
-  updateProgress.value = 0;
-
-  try {
-    await downloadAndApplyUpdate({
-      version: updateInfo.value.version,
-      downloadUrl: updateInfo.value.assetUrl,
-      onProgress: (percent) => {
-        if (Number.isFinite(percent)) {
-          updateProgress.value = Math.min(100, Math.max(0, percent));
-        }
-      },
-      onPreparing: () => {
-        updateStatus.value = 'setting';
-      },
-    });
-  } catch (error) {
-    console.warn('Manual update failed:', error);
-    updateStatus.value = 'error';
-    const message = error?.message ? `${t('updates.error')} ${error.message}` : t('updates.error');
-    updateError.value = message.trim();
-  }
-}
-
-function handleUpdateCancel() {
-  if (updateStatus.value === 'downloading' || updateStatus.value === 'setting') {
-    return;
-  }
-
-  if (updateInfo.value?.version) {
-    dismissedUpdateVersion.value = updateInfo.value.version;
-  }
-
-  showUpdateModal.value = false;
-  updateStatus.value = 'idle';
-  updateProgress.value = 0;
-  updateError.value = '';
-  updateInfo.value = null;
-}
-
-onMounted(async () => {
-  window.addEventListener('resize', updateOrientation);
-  window.addEventListener('orientationchange', handleOrientationChange);
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('pageshow', handlePageShow);
-  window.addEventListener('focus', handleFocus);
-
-  if (!store.isBackendReachable) {
-    startConnectionTimer();
-  }
-
-  // Check for app update immediately - independent from backend status
-  if (isNativePlatform()) {
-    void checkForAppUpdate();
-  }
-
-  // Capacitor App Lifecycle Events for mobile platforms
-  if (['android', 'ios'].includes(Capacitor.getPlatform())) {
-    CapacitorApp.addListener('pause', () => {
-      console.log('Capacitor App pause event');
-      pauseApp();
-    });
-
-    CapacitorApp.addListener('resume', () => {
-      console.log('Capacitor App resume event');
-      resumeApp();
-    });
-
-    CapacitorApp.addListener('appStateChange', (state) => {
-      console.log('Capacitor App state change:', state.isActive);
-      if (state.isActive) {
-        resumeApp();
-      } else {
-        pauseApp();
-      }
-    });
-  }
-
-  // Listen for manual Stellarium refresh ONLY
-  window.addEventListener('refresh-stellarium', () => {
-    console.log('Manual Stellarium refresh requested');
-    stellariumRefreshKey.value = Date.now();
-  });
-
-  // Listen for update channel changes
-  window.addEventListener('check-app-update', (event) => {
-    console.log('Update check requested via channel switch');
-    if (event?.detail?.resetDismissed) {
-      dismissedUpdateVersion.value = null;
-      console.log('Cleared dismissed update version for channel switch');
-    }
-    if (isNativePlatform()) {
-      // Allow downgrades when switching channels (e.g., Beta -> Stable)
-      void checkForAppUpdate({ allowDowngrade: true });
-    }
-  });
-
-  // Timeout for connectionCheckCompleted after 3 seconds
-  const connectionTimeout = setTimeout(() => {
-    connectionCheckCompleted.value = true;
-  }, 3000);
-
-  await store.fetchAllInfos(t);
-  // Connection check is completed after first connection attempt
-  connectionCheckCompleted.value = true;
-  clearTimeout(connectionTimeout);
-
-  store.startFetchingInfo(t);
-  logStore.startFetchingLog();
-
-  // Check for PINS support first
-  await store.checkForPINS();
-
-  // Initialize dialog updates based on mode
-  if (store.isPINS) {
-    // PINS/Headless mode: Use SignalR for real-time updates
-    await dialogStore.initializeDialogSignalR();
-    await messageboxStore.initializeMessageboxSignalR();
-    flatsStore.startFetchingFlats();
-  } else {
-    // WPF mode: Use polling
-    dialogStore.startPolling();
-  }
-
-  if (!sequenceStore.sequenceEdit) {
-    sequenceStore.startFetching();
-  }
-
-  // Initialize language from settings store
-  locale.value = settingsStore.getLanguage();
-
-  // Show tutorial on first visit
-  if (!settingsStore.tutorial.completed) {
-    showTutorial.value = true;
-  }
-
-  // Initialize Keep Screen Awake for mobile platforms
-  if (['android', 'ios'].includes(Capacitor.getPlatform())) {
-    try {
-      const res = await KeepAwake.isSupported();
-      if (res?.isSupported && settingsStore.keepAwakeEnabled) {
-        setTimeout(async () => {
-          try {
-            await KeepAwake.keepAwake();
-            console.log('Keep Awake activated on app start');
-          } catch (e) {
-            console.warn('KeepAwake activation error:', e);
-          }
-        }, 1000);
-      }
-    } catch (e) {
-      console.warn('KeepAwake support check failed:', e);
-    }
-  }
-
-  // Load What's New content generated at build-time
-  try {
-    const res = await fetch('/whats-new.json', { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      whatsNewData.value = data;
-      const lastShownVersion = localStorage.getItem('tns.whatsnew.version');
-      const shouldShow = data?.version && data.version !== lastShownVersion;
-      if (shouldShow) {
-        if (!showTutorial.value) {
-          showWhatsNew.value = true;
-        } else {
-          whatsNewPending.value = true;
-        }
-      }
-    }
-  } catch (e) {
-    // silently ignore
-  }
-});
-
-// Watch for backend connection and add delay before hiding splash screen
-watch(
-  () => store.isBackendReachable,
-  async (isReachable, wasReachable) => {
-    if (isReachable) {
-      connectionElapsedSeconds.value = 0;
-      stopConnectionTimer();
-    } else if (wasReachable) {
-      startConnectionTimer();
-    }
-
-    if (isReachable && showSplashScreen.value) {
-      setTimeout(() => {
-        showSplashScreen.value = false;
-      }, 200); // delay
-    }
-
-    // Re-initialize dialog and messagebox SignalR after an instance switch
-    // (clearAllStates disconnects them; they don't auto-reconnect on their own)
-    if (isReachable && store.isPINS) {
-      await dialogStore.initializeDialogSignalR();
-      await messageboxStore.initializeMessageboxSignalR();
-    }
-
-    // Re-initialize night summary plugin after an instance switch so it
-    // fetches its status, settings, and sessions from the new backend.
-    if (isReachable && store.isPINS) {
-      nightSummaryStore.initialize();
-    }
-
-    if (isReachable) {
-      finalizePinsUpgradeRecoveryIfReady();
-    }
-  }
-);
-
-watch(connectionCheckCompleted, (isCompleted) => {
-  if (isCompleted) {
-    updateConnectionElapsed();
-  }
-});
-
-watch(
-  () => pinsStore.isUpgradeWaitingForBackend,
-  (isWaiting) => {
-    if (isWaiting) {
-      finalizePinsUpgradeRecoveryIfReady();
-    }
-  }
-);
-
-function closeTutorial() {
-  showTutorial.value = false;
-  settingsStore.completeTutorial();
-  if (whatsNewPending.value && whatsNewData.value) {
-    showWhatsNew.value = true;
-    whatsNewPending.value = false;
-  }
-}
-
-function dismissWhatsNew() {
-  showWhatsNew.value = false;
-  if (whatsNewData.value?.version) {
-    localStorage.setItem('tns.whatsnew.version', whatsNewData.value.version);
-  }
-}
-
-watch(
-  () => settingsStore.stellarium.landscapesVisible,
-  () => {
-    landscapeSwitch.value = Date.now();
-  }
-);
-
-// Watch for Stellarium visibility changes to force re-render
-watch(
-  () => store.showStellarium,
-  (newValue) => {
-    if (newValue) {
-      landscapeSwitch.value = Date.now();
-    }
-  }
-);
-
-onBeforeUnmount(async () => {
-  console.log('App.vue unmounted, cleaning up...');
-  store.stopFetchingInfo();
-  logStore.stopFetchingLog();
-  sequenceStore.stopFetching();
-  flatsStore.stopFetchingFlats();
-
-  stopConnectionTimer();
-
-  if (pinsUpgradeRecoveryTimer) {
-    clearTimeout(pinsUpgradeRecoveryTimer);
-    pinsUpgradeRecoveryTimer = null;
-  }
-
-  // Stop dialog updates based on mode
-  if (store.isPINS) {
-    // Disconnect SignalR in PINS mode
-    await dialogStore.disconnectDialogSignalR();
-    await messageboxStore.disconnectMessageboxSignalR();
-  } else {
-    // Stop polling in WPF mode
-    dialogStore.stopPolling();
-  }
-
-  store.clearAllStates();
-  store.isApiConnected = false;
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
-  window.removeEventListener('pageshow', handlePageShow);
-  window.removeEventListener('focus', handleFocus);
-  window.removeEventListener('resize', updateOrientation);
-  window.removeEventListener('orientationchange', handleOrientationChange);
-  window.removeEventListener('refresh-stellarium', () => {
-    stellariumRefreshKey.value = Date.now();
-  });
-  window.removeEventListener('check-app-update', () => {
-    if (isNativePlatform()) {
-      void checkForAppUpdate();
-    }
-  });
-
-  // Remove Capacitor listeners
-  if (['android', 'ios'].includes(Capacitor.getPlatform())) {
-    await CapacitorApp.removeAllListeners();
-  }
-});
-</script>
+</style>
 
 <style scoped>
-/* Tablet Landscape Adjustments */
-@media screen and (orientation: landscape) and (max-width: 1024px) {
-  .app-landscape .main-content {
-    margin-left: 8rem !important;
-    margin-right: 1rem !important;
-  }
-
-  .app-landscape .status-bar {
-    left: 8rem !important;
-    right: 0 !important;
-  }
+*, *::before, *::after {
+  box-sizing: border-box !important;
 }
 
-/* Smooth Transitions */
-.container {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* 
+  Jailbreak the Shell: position: fixed; inset: 0; forces this app to 
+  bind precisely to the screen edges, completely ignoring any parent div limits.
+*/
+.align-shell {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #020617;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  user-select: none;
+  z-index: 9999;
 }
 
-/* Safe Area Support - only for portrait bottom */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .app-portrait .main-content {
-    padding-bottom: calc(2.25rem + env(safe-area-inset-bottom) + 0.5rem);
-  }
+/* Header */
+.top-nav {
+  height: 38px;
+  background: #090d16;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
 }
 
-/* Responsive adjustments for very small screens */
-@media (max-width: 480px) {
-  .app-landscape .container {
-    padding-left: 12rem !important;
-    padding-right: 1rem !important;
-  }
-
-  .app-landscape .fixed.bottom-0 {
-    left: 12rem !important;
-    right: 0 !important;
-  }
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* Splash Screen Transition */
-.splash-enter-active {
-  transition: opacity 0.3s ease-in;
+.brand-title {
+  color: #38bdf8;
+  font-weight: 800;
+  font-size: 14px;
 }
 
-.splash-leave-active {
-  transition: opacity 0.3s ease-out;
+.brand-ver {
+  color: #64748b;
+  font-size: 10px;
 }
 
-.splash-enter-from,
-.splash-leave-to {
-  opacity: 0;
+.battery-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #10b981;
+  font-weight: 700;
 }
 
-/* Fade Transition for Picker Overlay */
-.fade-enter-active {
-  transition: opacity 0.2s ease-in;
+.battery-pill {
+  width: 14px;
+  height: 7px;
+  border: 1px solid #10b981;
+  border-radius: 2px;
+  padding: 1px;
 }
 
-.fade-leave-active {
-  transition: opacity 0.2s ease-out;
+.battery-fill {
+  height: 100%;
+  background: #10b981;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.device-toolbar {
+  display: flex;
+  gap: 4px;
 }
+
+.tool-btn {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  color: #38bdf8;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Workspace Grid Layout */
+.deck-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 210px 1fr 250px;
+  min-height: 0;
+  min-width: 0;
+  background: #020617;
+  overflow: hidden;
+}
+
+.panel-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #1e293b;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+/* Left Sidebar */
+.panel-left {
+  background: #090d16;
+  border-right: 1px solid #1e293b;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stepper-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-node {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #475569;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.step-item.completed .step-node {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.step-item.active .step-node {
+  border-color: #38bdf8;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.step-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-num { font-size: 7px; color: #64748b; font-weight: 700; }
+.step-name { font-size: 11px; color: #cbd5e1; font-weight: 600; }
+
+.step-line {
+  width: 1px;
+  height: 8px;
+  background: #334155;
+  margin-left: 8px;
+}
+.step-line.completed { background: #10b981; }
+
+.mount-schema-card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.schema-title {
+  font-size: 8px;
+  color: #64748b;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.mount-svg { width: 110px; height: 75px; }
+
+.reticle-legend {
+  font-size: 10px;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot.green { background: #10b981; }
+.dot.yellow { background: #f59e0b; }
+
+/* Center Panel Viewport */
+.panel-center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.reticle-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: min(100%, 64vh); 
+  max-height: min(100%, 64vh);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scope-svg { 
+  width: 100%; 
+  height: 100%; 
+}
+
+.ra-target-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.target-ring {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #f59e0b;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+
+.target-readout {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: #f59e0b;
+  font-family: monospace;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(2, 6, 23, 0.9);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+/* Toast is now pinned to the bottom of the column, far away from SVG text */
+.status-toast {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #10b981;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-toast.busy { border-color: #f59e0b; color: #f59e0b; }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* Right Sidebar */
+.panel-right {
+  background: #090d16;
+  border-left: 1px solid #1e293b;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.quality-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.quality-icon { font-size: 18px; }
+.quality-info { display: flex; flex-direction: column; }
+.quality-title { font-size: 8px; color: #64748b; font-weight: 800; }
+.quality-value { font-size: 11px; font-weight: 800; }
+
+.vectors-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.vector-title { font-size: 9px; color: #64748b; font-weight: 700; }
+
+.vector-row {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 5px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.axis-tag { display: flex; flex-direction: column; }
+.axis-label { font-size: 9px; font-weight: 700; color: #f8fafc; }
+.axis-sub { font-size: 7px; color: #64748b; }
+
+.vector-value-box { display: flex; flex-direction: column; align-items: flex-end; }
+.arrow { font-size: 8px; color: #38bdf8; font-weight: 700; }
+.angle { font-family: monospace; font-size: 11px; font-weight: 700; color: #10b981; }
+
+.total-error-box {
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.error-heading { font-size: 8px; color: #64748b; font-weight: 800; }
+.error-value { font-family: monospace; font-size: 15px; font-weight: 900; }
+.error-raw { font-size: 8px; color: #475569; }
+
+.panel-spacer {
+  flex: 1;
+}
+
+/* Control Dock */
+.control-dock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dock-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.shutter-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+.shutter-trigger {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.shutter-core { width: 14px; height: 14px; border-radius: 50%; background: #ef4444; }
+
+.exp-setting { display: flex; flex-direction: column; }
+.exp-title { font-size: 7px; color: #64748b; font-weight: 800; }
+.exp-time { font-size: 10px; font-weight: 700; color: #f8fafc; }
+
+.btn {
+  height: 30px;
+  border-radius: 4px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-finish { border-color: #059669; background: #064e3b; color: #34d399; }
+.btn-refresh { border-color: #0284c7; background: #0c4a6e; color: #38bdf8; height: 30px; }
+
+.auto-check {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  font-size: 9px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+/* Footer Telemetry Bar */
+.bottom-bar {
+  height: 22px;
+  background: #020617;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 9px;
+  color: #64748b;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.telemetry-group { display: flex; gap: 12px; }
+.tel-item { display: flex; gap: 3px; }
+.tel-key { color: #475569; }
+.tel-val { color: #94a3b8; font-weight: 600; }
 </style>
